@@ -11,7 +11,9 @@ volatile int redLEDstate = 1, LCDsetting = 1;
 float windReadings[6];
 float windAvg1, FullWindAvg1, windAvg2, FullWindAvg2;
 float lightReading, FullLightReading, airReading, FullAirReading;
-//---------------------------------------------------------------------------------------------------------------------------------
+
+//---------------------------------------------------------------------------------------------------------------------------------//
+
 void setup() {
   LCD.begin(9600);   delay(500);
   LCDclear();  // clear display
@@ -31,7 +33,9 @@ void setup() {
     digitalWrite(LEDPIN[i], LOW);
   }
 }
-//---------------------------------------------------------------------------------------------------------------------------------
+
+//---------------------------------------------------------------------------------------------------------------------------------//
+
 void loop() {
   
   for (int j = 0; j < 10; j++){ //FULL MODE - loop to store readings every 10 mins
@@ -87,7 +91,9 @@ void loop() {
   FullLightReading = 0;
   FullAirReading = 0;
 }
-//---------------------------------------------------------------------------------------------------------------------------------
+
+//---------------------------------------------------------------------------------------------------------------------------------//
+
 void Press(){ 
   if (LCDsetting < 3)
     LCDsetting++;
@@ -95,7 +101,7 @@ void Press(){
     LCDsetting = 1;
    delay(200);
 }
-//---------------------------------------------------------------------------------------------------------------------------------
+
 void LCDdisplay(){
   LCDclear();
   switch(LCDsetting){
@@ -109,7 +115,6 @@ void LCDdisplay(){
       LCDwind(windAvg1, windAvg2); break;
   }
 }
-//---------------------------------------------------------------------------------------------------------------------------------
 void LCDclear(){
   LCD.write(254); // move cursor to beginning of first line
   LCD.write(128);
@@ -117,7 +122,7 @@ void LCDclear(){
   LCD.write(254); // move cursor to beginning of first line
   LCD.write(128);
 }
-//---------------------------------------------------------------------------------------------------------------------------------
+
 void LCDtemperature(int temp){
  char tempstring[10], tempstring2[10];
 
@@ -129,7 +134,7 @@ void LCDtemperature(int temp){
   LCD.write(tempstring);  LCD.write("C ");  
   LCD.write(tempstring2); LCD.write("F");
 }
-//---------------------------------------------------------------------------------------------------------------------------------
+
 void LCDlight(int lux){
   
   const int lightLimit[] = {100, 350, 650, 1023};
@@ -143,7 +148,7 @@ void LCDlight(int lux){
   else if (lux < 650)   { LCD.write("Bright");   }
   else if (lux < 1023)  { LCD.write("Sunny");    } 
 }        
-//---------------------------------------------------------------------------------------------------------------------------------
+
 void LCDwind(int wind1, int wind2){
   LCD.write("Wind:");  
   LCD.write("           "); 
@@ -160,7 +165,7 @@ void LCDwind(int wind1, int wind2){
       else                                              {   LCD.write("No Wind Data"); }
       LCD.write("           ");
 }
-//---------------------------------------------------------------------------------------------------------------------------------
+
 void WindSpeed(float wind1, float wind2){
   Serial.print("Wind:                      ");
 
@@ -196,7 +201,7 @@ void WindSpeed(float wind1, float wind2){
     Serial.println("Gusty");
     redLEDstate = 3; }
   }
-//---------------------------------------------------------------------------------------------------------------------------------
+
 void ambient(int lux, int LEDpin){
   int luxLimit[] = {100, 350, 650, 1023};
   String luxReading[] = {"less than 100 lux   dark", 
@@ -216,7 +221,7 @@ void ambient(int lux, int LEDpin){
     }
   }
 }
-//---------------------------------------------------------------------------------------------------------------------------------
+
 void airTemp(int temp, int LEDpin){
   int tempLimit[] = {0, 15, 25, 1000}; //celsius
   String tempReading[] = {"below freezing", "cool", "warm", "hot"};
@@ -235,7 +240,7 @@ void airTemp(int temp, int LEDpin){
     }
   }
 }
-//---------------------------------------------------------------------------------------------------------------------------------
+
 void blinkLED(){ 
    switch (redLEDstate){
     case 1: // off
@@ -246,7 +251,7 @@ void blinkLED(){
       digitalWrite(LEDPIN[0], digitalRead(LEDPIN[0])^1); break; // blink
    } 
 }
-//---------------------------------------------------------------------------------------------------------------------------------
+
 void printHeader(){
   Serial.println("-------------------------------------------------------");
   Serial.print("Mount Lake Resort. Date: 25 Feb 2020. Time: 10:");
@@ -255,7 +260,7 @@ void printHeader(){
   Serial.println("-------------------------------------------------------");
   time++;
 }
-//---------------------------------------------------------------------------------------------------------------------------------
+
 float celsius(float reading){ //convert the voltage reading to temperature
   float voltage = reading*5.0;
   voltage /= 1024.0;
