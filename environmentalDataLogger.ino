@@ -1,41 +1,31 @@
-/*---------------------------------------------------------------------------------------------------------------------------------
-Name: Josiah Tsang
-Student #: 10032821
-Date: Feb 25, 2020
-Case Study Lab 2: Environmental Data Logger
-*/
-//---------------------------------------------------------------------------------------------------------------------------------
 #include <SoftwareSerial.h>
 #include <TimerThree.h>
-SoftwareSerial mySerial(3, 9);
+SoftwareSerial LCD(3, 9);
 
 // variables
 const int SWITCH = 8, TIMER = 2;
 const int LEDPIN[] = {5, 6, 7}; // red, yellow, green
 int TESTMODE, time = 0;
-volatile int redLEDstate = 1, LCDsetting = 1; // make LED off (case 1) by default
+volatile int redLEDstate = 1, LCDsetting = 1; 
 
-float windReadings[6]; // stores 1 min wind readings
-float fullData[3][10]; // stores 10 min data
+float windReadings[6];
 float windAvg1, FullWindAvg1, windAvg2, FullWindAvg2;
 float lightReading, FullLightReading, airReading, FullAirReading;
 //---------------------------------------------------------------------------------------------------------------------------------
 void setup() {
-  mySerial.begin(9600);   delay(500);
-  mySerial.write(254); // move cursor to beginning of first line
-  mySerial.write(128);
-  mySerial.write("                                                "); // clear display
+  LCD.begin(9600);   delay(500);
+  LCDclear();  // clear display
   
   Serial.begin(9600);
   analogRead(A2); // potentiometer
   analogRead(A3); // photo resistor
   analogRead(A4); // temp sensor
   pinMode(SWITCH, INPUT);  
-  
+    
   Timer3.initialize(100000); 
   Timer3.attachInterrupt(blinkLED);
-  attachInterrupt(digitalPinToInterrupt(2), buttonPressed, FALLING);
-  
+  attachInterrupt(digitalPinToInterrupt(2), Press, FALLING);
+
   for (int i = 0; i < 3; i++){ // initalize each LED pin
     pinMode(LEDPIN[i], OUTPUT);
     digitalWrite(LEDPIN[i], LOW);
@@ -43,28 +33,26 @@ void setup() {
 }
 //---------------------------------------------------------------------------------------------------------------------------------
 void loop() {
-
+  
   for (int j = 0; j < 10; j++){ //FULL MODE - loop to store readings every 10 mins
   TESTMODE = digitalRead(SWITCH);
-    
+ 
     for (int i = 0; i < 6; i++){ //TEST MODE - loop to store all readings in 1 min
-      
       noInterrupts();
       windReadings[i] = analogRead(A2)/64;  
       lightReading += analogRead(A3);
       airReading += celsius(analogRead(A4)); 
       windAvg1 += windReadings[i];
-      interrupts();
+      interrupts();      
       delay(TIMER*1000); // take reading every 10s
       }
     
-    // 1 min data
-  
+    // 1 min data avg over 6 ten second readings
     windAvg1/=6; 
     lightReading/=6;
     airReading/=6;
     
-    LCDdisplay(LCDsetting, airReading, lightReading, windAvg1, windAvg2);
+    LCDdisplay();
     
     if (TESTMODE == HIGH){
       printHeader();
@@ -72,15 +60,10 @@ void loop() {
       ambient(lightReading, LEDPIN[1]);
       airTemp(airReading, LEDPIN[2]);
     }
-    
-    //store 1 min data into 10 min data matrix
-    fullData[0][j] = windAvg1;
-    fullData[1][j] = lightReading;
-    fullData[2][j] = airReading;
      
-    FullWindAvg1 += fullData[0][j];
-    FullLightReading += fullData[1][j]; 
-    FullAirReading += fullData[2][j]; 
+    FullWindAvg1 += windAvg1;
+    FullLightReading += lightReading; 
+    FullAirReading += airReading; 
     
     windAvg2 = windAvg1; // set second to first
     windAvg1 = 0;
@@ -88,12 +71,10 @@ void loop() {
     airReading = 0;
   }
   
-  // 10 min data
+  // 10 min data avg over 10 one min readings
   FullWindAvg1/=10;
   FullLightReading/=10;
   FullAirReading/=10;
-  
-  //LCDdisplay(LCDsetting,FullAirReading, FullLightReading, FullWindAvg1, FullWindAvg2);
   
   if (TESTMODE == LOW){ 
     printHeader();
@@ -106,77 +87,128 @@ void loop() {
   FullLightReading = 0;
   FullAirReading = 0;
 }
-
 //---------------------------------------------------------------------------------------------------------------------------------
-void LCDdisplay(int setting, int temp, int lux, int wind1, int wind2){
-  char tempstring[10], tempstring2[10];
-  
-  mySerial.write(254); // move cursor to beginning of first line
-  mySerial.write(128);
-  mySerial.write("                                                "); // clear display
-
-  mySerial.write(254); // move cursor to beginning of first line
-  mySerial.write(128);
-
-  switch(setting){ // print first line
+void Press(){ 
+  if (LCDsetting < 3)
+    LCDsetting++;
+  else 
+    LCDsetting = 1;
+   delay(200);
+}
+//---------------------------------------------------------------------------------------------------------------------------------
+void LCDdisplay(){
+  LCDclear();
+  switch(LCDsetting){
     case 1:
-      mySerial.write("Temperature:");  
-      mySerial.write("    "); 
-      mySerial.write("                ");
-      sprintf(tempstring,"%4d",temp);
-      sprintf(tempstring2,"%4d",(temp*9/5+32));
-      mySerial.write(tempstring);  mySerial.write("C ");  
-      mySerial.write(tempstring2); mySerial.write("F"); break;
+      LCDtemperature(airReading); 
+       break;
     case 2:
-      mySerial.write("Light:");  
-      mySerial.write("          "); 
-      mySerial.write("                ");
-        if (lux < 100)        { mySerial.write("Dark");     }
-        else if (lux < 350)   { mySerial.write("Overcast"); }
-        else if (lux < 650)   { mySerial.write("Bright");   }
-        else if (lux < 1023)  { mySerial.write("Sunny");    } 
-        break;
+      LCDlight(lightReading);
+       break;
     case 3:
-      mySerial.write("Wind:");  
-      mySerial.write("           "); 
-      mySerial.write("                ");
-
-      if      (wind1==wind2 && wind1==7 || wind1==8)    {   mySerial.write("Still");     }
-      else if (wind1==wind2 && wind1>=3 && wind1<=6)    {   mySerial.write("Windy");     }
-      else if (wind1==wind2 && wind1>=9 && wind1<=12)   {   mySerial.write("Windy");     }
-      else if (wind1==wind2 && wind1>=0 && wind1<=2)    {   mySerial.write("Stormy");    }
-      else if (wind1==wind2 && wind1>=13 && wind1<=15)  {   mySerial.write("Stormy");    }
-  
-      else if (wind1!=wind2 && wind1>=6 && wind1<=9)    {   mySerial.write("Breezy");    }
-      else if (wind1!=wind2 && wind1>=0 && wind1<=5)    {   mySerial.write("Gusty");     }
-      else if (wind1!=wind2 && wind1>=10 && wind1<=15)  {   mySerial.write("Gusty");     }
-      else                                                       {   mySerial.write("No Wind Data"); }
-      mySerial.write("           ");  break;
+      LCDwind(windAvg1, windAvg2); break;
   }
 }
 //---------------------------------------------------------------------------------------------------------------------------------
-void WindSpeed(short wind1, short wind2) { // dan's function (REWRITE)
-  Serial.print("Wind:     ");   
-  if      (wind1==wind2 && wind1==7 || wind1==8)    {   Serial.println("Still");     redLEDstate = 1; }
-  else if (wind1==wind2 && wind1>=3 && wind1<=6)    {   Serial.println("Windy");     redLEDstate = 3; }
-  else if (wind1==wind2 && wind1>=9 && wind1<=12)   {   Serial.println("Windy");     redLEDstate = 3; }
-  else if (wind1==wind2 && wind1>=0 && wind1<=2)    {   Serial.println("Stormy");    redLEDstate = 2; }
-  else if (wind1==wind2 && wind1>=13 && wind1<=15)  {   Serial.println("Stormy");    redLEDstate = 2; }
-  
-  else if (wind1!=wind2 && wind1>=6 && wind1<=9)    {   Serial.println("Breezy");    redLEDstate = 3; }
-  else if (wind1!=wind2 && wind1>=0 && wind1<=5)    {   Serial.println("Gusty");     redLEDstate = 3; }
-  else if (wind1!=wind2 && wind1>=10 && wind1<=15)  {   Serial.println("Gusty");     redLEDstate = 3; }
+void LCDclear(){
+  LCD.write(254); // move cursor to beginning of first line
+  LCD.write(128);
+  LCD.write("                                                "); // clear display
+  LCD.write(254); // move cursor to beginning of first line
+  LCD.write(128);
 }
+//---------------------------------------------------------------------------------------------------------------------------------
+void LCDtemperature(int temp){
+ char tempstring[10], tempstring2[10];
+
+  LCD.write("Temperature:");  
+  LCD.write("    "); 
+  LCD.write("                ");
+  sprintf(tempstring,"%4d",temp);
+  sprintf(tempstring2,"%4d",(temp*9/5+32));
+  LCD.write(tempstring);  LCD.write("C ");  
+  LCD.write(tempstring2); LCD.write("F");
+}
+//---------------------------------------------------------------------------------------------------------------------------------
+void LCDlight(int lux){
+  
+  const int lightLimit[] = {100, 350, 650, 1023};
+  const String lightReading[] = {"dark", "overcast","brght","sunny"};
+  
+  LCD.write("Light:");  
+  LCD.write("          "); 
+  LCD.write("                ");
+  if (lux < 100)        { LCD.write("Dark");     }
+  else if (lux < 350)   { LCD.write("Overcast"); }
+  else if (lux < 650)   { LCD.write("Bright");   }
+  else if (lux < 1023)  { LCD.write("Sunny");    } 
+}        
+//---------------------------------------------------------------------------------------------------------------------------------
+void LCDwind(int wind1, int wind2){
+  LCD.write("Wind:");  
+  LCD.write("           "); 
+  LCD.write("                ");
+      if      (wind1==wind2 && wind1==7 || wind1==8)    {   LCD.write("Still");     }
+      else if (wind1==wind2 && wind1>=3 && wind1<=6)    {   LCD.write("Windy");     }
+      else if (wind1==wind2 && wind1>=9 && wind1<=12)   {   LCD.write("Windy");     }
+      else if (wind1==wind2 && wind1>=0 && wind1<=2)    {   LCD.write("Stormy");    }
+      else if (wind1==wind2 && wind1>=13 && wind1<=15)  {   LCD.write("Stormy");    }
+  
+      else if (wind1!=wind2 && wind1>=6 && wind1<=9)    {   LCD.write("Breezy");    }
+      else if (wind1!=wind2 && wind1>=0 && wind1<=5)    {   LCD.write("Gusty");     }
+      else if (wind1!=wind2 && wind1>=10 && wind1<=15)  {   LCD.write("Gusty");     }
+      else                                              {   LCD.write("No Wind Data"); }
+      LCD.write("           ");
+}
+//---------------------------------------------------------------------------------------------------------------------------------
+void WindSpeed(float wind1, float wind2){
+  Serial.print("Wind:                      ");
+
+  if (wind1==wind2 && wind1==7 || wind1==8){   
+    Serial.println("Still");     
+    redLEDstate = 1; 
+    }
+  else if (wind1==wind2 && wind1>=3 && wind1<=6){
+    Serial.println("Windy");     
+    redLEDstate = 3; 
+  }
+  else if (wind1==wind2 && wind1>=9 && wind1<=12){
+    Serial.println("Windy");
+    redLEDstate = 3;
+  }
+  else if (wind1==wind2 && wind1>=0 && wind1<=2){
+    Serial.println("Stormy");
+    redLEDstate = 2; 
+    }
+  else if (wind1==wind2 && wind1>=13 && wind1<=15){
+    Serial.println("Stormy");    
+    redLEDstate = 2; 
+  }
+  else if (wind1!=wind2 && wind1>=6 && wind1<=9){
+    Serial.println("Breezy");
+    redLEDstate = 3;
+  }
+  else if (wind1!=wind2 && wind1>=0 && wind1<=5){
+    Serial.println("Gusty");     
+    redLEDstate = 3; 
+  }
+  else if (wind1!=wind2 && wind1>=10 && wind1<=15){
+    Serial.println("Gusty");
+    redLEDstate = 3; }
+  }
 //---------------------------------------------------------------------------------------------------------------------------------
 void ambient(int lux, int LEDpin){
   int luxLimit[] = {100, 350, 650, 1023};
-  String luxReading[] = {"less than 100 lux   ark", "100-1000 lux   overcast", "1000-10000 lux   bright", "over 10000 lux sunny"};
+  String luxReading[] = {"less than 100 lux   dark", 
+                         "100-1000 lux        overcast", 
+                         "1000-10000 lux      bright", 
+                         "over 10000 lux      sunny"};
   digitalWrite(LEDpin,LOW); 
-  Serial.print("Outside ambient light:   ");   
+  Serial.print("Outside ambient light:   "); 
   
   for (int i = 0; i < 4; i++){
     if (lux < luxLimit[i]){
-      Serial.print("      ");
+      Serial.print("  ");
       Serial.println(luxReading[i]);
         if (luxReading[i] == "sunny")
           digitalWrite(LEDpin, HIGH);
@@ -188,28 +220,20 @@ void ambient(int lux, int LEDpin){
 void airTemp(int temp, int LEDpin){
   int tempLimit[] = {0, 15, 25, 1000}; //celsius
   String tempReading[] = {"below freezing", "cool", "warm", "hot"};
-  Serial.print("Outside air temperature:     "); 
+  Serial.print("Outside air temperature:   "); 
   Serial.print(temp);
   Serial.print("C ");
   Serial.print(temp*9/5+32);
-  Serial.print('F');
+  Serial.print("F             ");
   
   for (int i = 0; i < 4; i++){
     if (temp < tempLimit[i]){
-      Serial.print("      ");
       Serial.println(tempReading[i]);
         if (tempReading[i] == "warm" or tempReading[i] == "hot")
           digitalWrite(LEDpin, HIGH);
     break;    
     }
   }
-}
-//---------------------------------------------------------------------------------------------------------------------------------
-void buttonPressed(){ 
-  if (LCDsetting < 3)
-    LCDsetting++;
-  else 
-    LCDsetting = 1;
 }
 //---------------------------------------------------------------------------------------------------------------------------------
 void blinkLED(){ 
@@ -224,11 +248,11 @@ void blinkLED(){
 }
 //---------------------------------------------------------------------------------------------------------------------------------
 void printHeader(){
-  Serial.println("-------------------------------------");
+  Serial.println("-------------------------------------------------------");
   Serial.print("Mount Lake Resort. Date: 25 Feb 2020. Time: 10:");
   Serial.println(time);
   Serial.println("Location: Peak Lake");
-  Serial.println("-------------------------------------");
+  Serial.println("-------------------------------------------------------");
   time++;
 }
 //---------------------------------------------------------------------------------------------------------------------------------
